@@ -21,54 +21,63 @@ module.exports = function (domains, graphQLSchema) {
 
         const operationId = usecase.name.replace(/ /g, '_').toLowerCase();
 
-        const queryTokens = usecase.query.split(".");
-        if (queryTokens.length < 2)
-            throw new TypeError(`Domain: ${tag}. Usecase query '${usecase.query}' is not well formed.\nExpected 'query.<fieldName>' or 'mutation.<mutationName>'`)
-        const typeDict = queryTokens[0] == "query" ?
-            graphQLSchema.getQueryType() :
-            graphQLSchema.getMutationType()
+        let args = [];
+        let responses = {};
 
-        var target = typeDict;
-        queryTokens.forEach((token, i) => {
-            if (i != 0)
-                target = target.getFields()[token]
-        });        
+        if (usecase.query) {
+            const queryTokens = usecase.query.split(".");
+            if (queryTokens.length < 2)
+                throw new TypeError(`Domain: ${tag}. Usecase query '${usecase.query}' is not well formed.\nExpected 'query.<fieldName>' or 'mutation.<mutationName>'`)
+            const typeDict = queryTokens[0] == "query" ?
+                graphQLSchema.getQueryType() :
+                graphQLSchema.getMutationType()
 
-        const expandFields = usecase.expand ?
-            usecase.expand.split(",").map(getExpandField) :
-            []; // [] - expand nothing
-        const selectFields = usecase.select ? usecase.select.split(" ") : null; // null = select all                
-        expandFields.push({
-            field: target.name,
-            select: selectFields
-        })
+            var target = typeDict;
+            queryTokens.forEach((token, i) => {
+                if (i != 0)
+                    target = target.getFields()[token]
+            });        
 
-        var examples = generateExample(queryTokens[0].toLowerCase(), target, expandFields)
+            const expandFields = usecase.expand ?
+                usecase.expand.split(",").map(getExpandField) :
+                []; // [] - expand nothing
+            const selectFields = usecase.select ? usecase.select.split(" ") : null; // null = select all                
+            expandFields.push({
+                field: target.name,
+                select: selectFields
+            })
 
-        const responseSchema = convertTypeToSchema(target.type);
-        responseSchema.example = examples.schema;
+            var examples = generateExample(queryTokens[0].toLowerCase(), target, expandFields)
 
-        var args = examples.args ? examples.args.map(_ => ({
-            name: _.name,
-            description: _.description,
-            in: "query",
-            schema: convertTypeToSchema(_.type)
-        })) : [];
+            const responseSchema = convertTypeToSchema(target.type);
+            responseSchema.example = examples.schema;
 
-        const bodyArg = { in: "body",
-            example: examples.query,
-            schema: args.length == 0 ?
-                null :
-                {
-                    type: "object",
-                    properties: args.reduce((cur, next) => {
-                        cur[next.name] = Object.assign({}, next.schema)     
-                        return cur;                   
-                    }, {})
-                }
+            args = examples.args ? examples.args.map(_ => ({
+                name: _.name,
+                description: _.description,
+                in: "query",
+                schema: convertTypeToSchema(_.type)
+            })) : [];
+
+            const bodyArg = { in: "body",
+                example: examples.query,
+                schema: args.length == 0 ?
+                    null :
+                    {
+                        type: "object",
+                        properties: args.reduce((cur, next) => {
+                            cur[next.name] = Object.assign({}, next.schema)     
+                            return cur;                   
+                        }, {})
+                    }
+            }
+
+            args.push(bodyArg);
+            responses['200'] = {
+                description: "Successful operation",
+                schema: responseSchema
+            };
         }
-
-        args.push(bodyArg);
 
         result[operationId] = {
             post: {
@@ -79,12 +88,7 @@ module.exports = function (domains, graphQLSchema) {
                 consumes: ["application/json"],
                 produces: ["application/json"],
                 parameters: args,
-                responses: {
-                    '200': {
-                        description: "Successful operation",
-                        schema: responseSchema
-                    },
-                }
+                responses
             }
         }
 
