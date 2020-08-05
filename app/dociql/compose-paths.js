@@ -79,17 +79,25 @@ module.exports = function (domains, graphQLSchema) {
             };
         }
 
-        result[operationId] = {
-            post: {
-                tags: [tag],
-                summary: usecase.name,
-                description: usecase.description,
-                operationId: operationId,
+        let post = {
+            tags: [tag],
+            summary: usecase.name,
+            description: usecase.description,
+            operationId: operationId,
+            parameters: args
+        };
+
+        if (usecase.query) {
+            post = {
+                ...post,
                 consumes: ["application/json"],
                 produces: ["application/json"],
-                parameters: args,
                 responses
             }
+        }
+
+        result[operationId] = {
+            post
         }
 
         return result;
