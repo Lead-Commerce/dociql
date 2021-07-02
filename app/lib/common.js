@@ -1,5 +1,6 @@
 var highlightGraphQl = require('../dociql/graphql-hl')
 var cheerio = require('cheerio')
+if (typeof (cheerio) != 'function') cheerio = require('cheerio').default;
 var marked = require('marked')
 var highlight = require('highlight.js')
 var _ = require('lodash')
